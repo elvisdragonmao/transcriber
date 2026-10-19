@@ -1,0 +1,14 @@
+# /etc/caddy/Caddyfile — HTTPS for the WARP-internal hostname.
+# whisper.elvismao.com resolves to emfox's WARP virtual IP (100.96.0.25), so Let's Encrypt
+# cannot reach it over HTTP: the certificate is obtained with the Cloudflare DNS-01 challenge.
+# Requires a Caddy build with github.com/caddy-dns/cloudflare (see deploy/install-caddy.sh).
+whisper.elvismao.com {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+	# optional extra LAN/WARP-only guard at the proxy (the app also enforces LAN_ONLY)
+	@outside not remote_ip private_ranges 100.64.0.0/10
+	respond @outside 403
+	reverse_proxy 127.0.0.1:8000
+}

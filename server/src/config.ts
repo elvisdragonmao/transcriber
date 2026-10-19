@@ -30,7 +30,8 @@ export interface AppConfig {
   dataDir: string;
   publicOrigin: string | null;
   allowedOrigins: string[];
-  trustProxy: boolean;
+  /** Only the local reverse proxy may set X-Forwarded-For. */
+  trustProxy: string | boolean;
   secureCookies: boolean;
   instanceId: string;
   adminUser: string;
@@ -62,7 +63,7 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     dataDir,
     publicOrigin: origin,
     allowedOrigins: (env("ALLOWED_ORIGINS", origin ?? "") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
-    trustProxy: bool("TRUST_PROXY", true),
+    trustProxy: env("TRUST_PROXY", "127.0.0.1,::1")!,
     secureCookies: bool("SECURE_COOKIES", !!origin?.startsWith("https://")),
     instanceId: `${os.hostname()}-${process.pid}-${randomUUID().slice(0, 8)}`,
     adminUser: env("ADMIN_USER", "admin")!,

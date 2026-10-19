@@ -159,3 +159,13 @@ describe("CLI adapters", () => {
     expect(s).toMatchObject({ installed: false, loggedIn: false });
   });
 });
+
+describe("language-aware voiceprint threshold", () => {
+  it("uses the detected language's threshold", async () => {
+    const { thresholdFor } = await import("../src/speakers/match.js");
+    const s = { thresholdZh: 0.78, thresholdEn: 0.72, thresholdOther: 0.8 } as any;
+    expect(thresholdFor("Chinese", s)).toBe(0.78);
+    expect(thresholdFor("English", s)).toBe(0.72);
+    expect(thresholdFor(null, s)).toBe(0.8);
+  });
+});

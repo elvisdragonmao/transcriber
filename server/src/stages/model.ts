@@ -6,7 +6,8 @@ import { workDir } from "../queue/jobs.js";
 import { WorkerCallError, type Lane } from "../workers/pool.js";
 import { asrAudioPath, audioPaths } from "./prepare.js";
 import { cleanSpans, mergeTranscript, speechMsBySpeaker, type AlignSeg, type AsrSeg, type Turn } from "../transcript/merge.js";
-import { fromBlob, matchSpeakers, toBlob, type KnownSpeaker } from "../transcript/voiceprint.js";
+import { toBlob } from "../transcript/voiceprint.js";
+import { applySpeakerMatching } from "../speakers/match.js";
 import { markTranscriptComplete, saveMergedTranscript, SPEAKER_COLORS, buildExportDoc } from "../transcript/store.js";
 import { toJson } from "../transcript/exporters.js";
 import { nowIso, readJson, uuid, writeFileAtomic } from "../lib/util.js";
@@ -163,69 +164,50 @@ export const identify: StageHandler = async (ctx) => {
     ctx.progress(1, 1, "spans");
   }
 
-  const transcriptLang = (await readJson<any>(f.asr))?.languages_ms ?? null;
-  const lang = transcriptLang ? (Object.entries(transcriptLang as Record<string, number>).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "") : "";
-  const threshold = /chinese|cantonese/i.test(lang) ? s.identify.thresholdZh : /english/i.test(lang) ? s.identify.thresholdEn : s.identify.thresholdOther;
-
-  const known: KnownSpeaker[] = [];
-  const rows = db.prepare("SELECT s.id, s.name, e.vector FROM speakers s JOIN speaker_embeddings e ON e.speaker_id = s.id WHERE e.model = ?").all(s.identify.model) as any[];
-  for (const r of rows) {
-    let k = known.find((x) => x.id === r.id);
-    if (!k) known.push((k = { id: r.id, name: r.name, embeddings: [] }));
-    k.embeddings.push(fromBlob(r.vector));
-  }
   const locals = diar.speakers.map((k) => ({
     key: k,
     embedding: emb[String(k)]?.embedding ? Float32Array.from(emb[String(k)].embedding!) : null,
     cleanMs: emb[String(k)]?.used_ms ?? 0,
-    consistency: emb[String(k)]?.consistency ?? null,
   }));
-  const matches = matchSpeakers(locals, known, {
-    threshold,
-    minMargin: s.identify.minMargin,
-    suggestBelowBy: s.identify.suggestBelowBy,
-    minTotalCleanMs: s.identify.minTotalCleanSec * 1000,
-  });
 
   db.transaction(() => {
     // Re-running replaces automatic results but keeps manual naming made on the same diarization index.
     const prev = new Map(
-      (db.prepare("SELECT diar_index, speaker_id, assignment FROM recording_speakers WHERE recording_id = ?").all(rec.id) as any[]).map((r) => [r.diar_index, r]),
+      (db.prepare("SELECT diar_index, speaker_id, assignment, label FROM recording_speakers WHERE recording_id = ?").all(rec.id) as any[]).map((r) => [r.diar_index, r]),
     );
     db.prepare("DELETE FROM recording_speakers WHERE recording_id = ?").run(rec.id);
     const ins = db.prepare(
-      `INSERT INTO recording_speakers (id, recording_id, diar_index, label, speaker_id, assignment, match_score, match_margin, suggested_speaker_id, speech_ms, clean_speech_ms, embedding, embedding_model, color)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recording_speakers (id, recording_id, diar_index, label, speaker_id, assignment, speech_ms, clean_speech_ms, embedding, embedding_model, color)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const m of matches) {
-      const l = locals.find((x) => x.key === m.key)!;
-      const p = prev.get(m.key);
+    for (const l of locals) {
+      const p = prev.get(l.key);
       const manual = p?.assignment === "manual" && p.speaker_id;
       ins.run(
         uuid(),
         rec.id,
-        m.key,
-        `Speaker ${m.key + 1}`,
-        manual ? p.speaker_id : m.speakerId,
-        manual ? "manual" : m.assignment,
-        m.score,
-        m.margin,
-        m.suggestedId,
-        speech.get(m.key) ?? 0,
+        l.key,
+        p?.label ?? `Speaker ${l.key + 1}`,
+        manual ? p.speaker_id : null,
+        manual ? "manual" : "unknown",
+        speech.get(l.key) ?? 0,
         l.cleanMs,
         l.embedding ? toBlob(l.embedding) : null,
         l.embedding ? s.identify.model : null, // the model id, so later matching compares like with like
-        m.key % SPEAKER_COLORS,
+        l.key % SPEAKER_COLORS,
       );
     }
   })();
+  // Preliminary match with the user's language hint; `merge` re-applies it with the detected language.
+  const hint = rec.language_hint === "zh" ? "Chinese" : rec.language_hint === "en" ? "English" : null;
+  const { threshold, matches } = applySpeakerMatching(db, rec.id, hint, s.identify);
   const auto = matches.filter((m) => m.assignment === "auto").length;
   return {
     kind: "completed",
     outputPath: f.identify,
     modelVersion,
-    detail: { speakers: matches.length, autoNamed: auto, suggested: matches.filter((m) => m.assignment === "suggested").length, threshold, language: lang },
-    message: `Speaker identification: ${auto} of ${matches.length} speaker(s) matched a known voice (threshold ${threshold})`,
+    detail: { speakers: locals.length, autoNamed: auto, suggested: matches.filter((m) => m.assignment === "suggested").length, threshold },
+    message: `Voiceprints for ${locals.filter((l) => l.embedding).length} of ${locals.length} speaker(s); preliminary match: ${auto} known (threshold ${threshold})`,
   };
 };
 
@@ -247,6 +229,10 @@ export const merge: StageHandler = async (ctx) => {
     modelInfo: Object.fromEntries(stages.filter((s) => s.model_version).map((s) => [s.name, s.model_version])),
     languagesMs: asrOut.languages_ms ?? {},
   });
+  // Now the dominant language is known: decide voiceprint matches with its threshold.
+  const lang = Object.entries((asrOut.languages_ms ?? {}) as Record<string, number>).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const m = applySpeakerMatching(ctx.app.db, ctx.job.recording_id, lang, ctx.app.settings.get().identify);
+  ctx.log("info", `Speaker matching with ${lang ?? "unknown"} threshold ${m.threshold}: ${m.matches.filter((x) => x.assignment === "auto").length} auto, ${m.matches.filter((x) => x.assignment === "suggested").length} suggested`);
   ctx.progress(1, 1, "steps");
   const counts = { assigned: 0, overlap: 0, uncertain: 0 } as Record<string, number>;
   for (const s of segments) counts[s.status]++;

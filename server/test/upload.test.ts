@@ -12,6 +12,21 @@ async function smallChunks(t: TestApp, size = 256 * 1024) {
   await t.req("PATCH", "/api/settings", { upload: { smallChunk: size, mediumChunk: size * 2, largeChunk: size * 4, mediumThreshold: 4 * 1024 * 1024, largeThreshold: 16 * 1024 * 1024 } });
 }
 
+describe("settings", () => {
+  it("PATCH changes only the sections sent and validates them", async () => {
+    t = await makeApp({ startScheduler: false });
+    await t.req("PATCH", "/api/settings", { gpu: { asrDevice: "GPU-aaa", diarDevice: "GPU-bbb" } });
+    const r = await t.req("PATCH", "/api/settings", { obsidian: { vaultName: "EM's Brain" } });
+    expect(r.status).toBe(200);
+    expect(r.json.settings.gpu).toMatchObject({ asrDevice: "GPU-aaa", diarDevice: "GPU-bbb" });
+    expect(r.json.settings.obsidian.vaultName).toBe("EM's Brain");
+    expect((await t.req("PATCH", "/api/settings", { vad: { threshold: 5 } })).status).toBe(400);
+    expect((await t.req("PATCH", "/api/settings", { nope: {} })).status).toBe(400);
+    expect((await t.req("PATCH", "/api/settings", { obsidian: { allowedRoots: ["../x"] } })).status).toBe(400);
+    expect((await t.req("GET", "/api/settings")).json.settings.gpu.asrDevice).toBe("GPU-aaa");
+  });
+});
+
 describe("chunked upload", () => {
   it("requires login", async () => {
     t = await makeApp({ startScheduler: false, login: false });

@@ -84,16 +84,25 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext, sched
   app.get("/api/settings", async () => ({ settings: ctx.settings.get() }));
   app.patch("/api/settings", async (req) => {
     const body = req.body as Record<string, unknown>;
-    if (!body || typeof body !== "object") throw badRequest("Expected an object");
-    const partial = settingsSchema.partial().parse(Object.fromEntries(Object.entries(body).map(([k, v]) => [k, { ...(ctx.settings.get() as any)[k], ...(v as object) }])));
-    if (partial.obsidian) {
-      for (const r of partial.obsidian.allowedRoots) if (!r.trim() || r.includes("..") || r.startsWith("/")) throw badRequest(`Invalid allowed root: ${r}`);
-      validateVaultPath(joinVault(partial.obsidian.transcriptFolder, "x.md"), partial.obsidian.allowedRoots);
-      validateVaultPath(joinVault(partial.obsidian.pendingFolder, "x.md"), partial.obsidian.allowedRoots);
-      if (partial.obsidian.backend === "filesystem" && partial.obsidian.vaultRoot && !path.isAbsolute(partial.obsidian.vaultRoot)) throw badRequest("Vault root must be an absolute path");
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw badRequest("Expected an object");
+    const current = ctx.settings.get() as Record<string, any>;
+    // Only the sections present in the body change; each is merged onto its current value and validated.
+    const patchObj: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body)) {
+      if (!(k in current)) throw badRequest(`Unknown settings section: ${k}`);
+      if (!v || typeof v !== "object") throw badRequest(`Section ${k} must be an object`);
+      patchObj[k] = (settingsSchema.shape as any)[k].parse({ ...current[k], ...(v as object) });
     }
-    const s = ctx.settings.update(partial as any);
-    if (partial.gpu) await ctx.workers.restart();
+    const ob = patchObj.obsidian as any;
+    if (ob) {
+      for (const r of ob.allowedRoots) if (!r.trim() || r.includes("..") || r.startsWith("/")) throw badRequest(`Invalid allowed root: ${r}`);
+      validateVaultPath(joinVault(ob.transcriptFolder, "x.md"), ob.allowedRoots);
+      validateVaultPath(joinVault(ob.pendingFolder, "x.md"), ob.allowedRoots);
+      if (ob.backend === "filesystem" && ob.vaultRoot && !path.isAbsolute(ob.vaultRoot)) throw badRequest("Vault root must be an absolute path");
+    }
+    const gpuChanged = patchObj.gpu && JSON.stringify(patchObj.gpu) !== JSON.stringify(current.gpu);
+    const s = ctx.settings.update(patchObj as any);
+    if (gpuChanged) await ctx.workers.restart();
     scheduler.kick();
     return { settings: s };
   });

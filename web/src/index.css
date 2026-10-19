@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+}
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f1f3f6;
+  --line: #e2e5ea;
+  --fg: #151a22;
+  --muted: #5d6675;
+  --accent: #4f46e5;
+  --accent-fg: #ffffff;
+  --ok: #15803d;
+  --warn: #b45309;
+  --bad: #b91c1c;
+}
+
+.dark {
+  --bg: #0e1116;
+  --panel: #161a21;
+  --panel-2: #1d222b;
+  --line: #2a313c;
+  --fg: #e6e9ee;
+  --muted: #98a2b3;
+  --accent: #818cf8;
+  --accent-fg: #0e1116;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* long transcripts: let the browser skip layout of off-screen rows */
+.seg-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
+.prose-note h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0.4rem 0 0.8rem;
+}
+.prose-note h2 {
+  font-size: 1.1rem;
+  font-weight: 650;
+  margin: 1.4rem 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.prose-note h3 {
+  font-weight: 600;
+  margin: 1rem 0 0.35rem;
+}
+.prose-note p,
+.prose-note li {
+  line-height: 1.7;
+}
+.prose-note ul {
+  list-style: disc;
+  padding-left: 1.3rem;
+}
+.prose-note ol {
+  list-style: decimal;
+  padding-left: 1.3rem;
+}
+.prose-note code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--panel-2);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+.prose-note table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+}
+.prose-note th,
+.prose-note td {
+  border: 1px solid var(--line);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+}
+.prose-note hr {
+  border-color: var(--line);
+  margin: 1rem 0;
+}
+.prose-note a {
+  color: var(--accent);
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+.bar-indeterminate {
+  animation: indeterminate 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-indeterminate {
+    animation: none;
+    opacity: 0.6;
+    transform: none;
+    width: 100% !important;
+  }
+}

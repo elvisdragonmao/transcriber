@@ -1,0 +1,29 @@
+[Unit]
+Description=Transcriber - local AI transcription (API, scheduler, GPU workers)
+Documentation=file:///home/em/transcriber/README.md
+After=network-online.target nvidia-persistenced.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=em
+Group=em
+WorkingDirectory=/home/em/transcriber
+EnvironmentFile=/home/em/transcriber/.env
+Environment=NODE_ENV=production
+Environment=PATH=/home/em/.local/bin:/home/em/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/node /home/em/transcriber/server/dist/index.js
+# SIGTERM → server pauses running stages at safe boundaries and stops the Python workers
+KillMode=mixed
+TimeoutStopSec=45
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+StandardOutput=append:/home/em/transcriber/data/logs/service.log
+StandardError=append:/home/em/transcriber/data/logs/service.log
+
+[Install]
+WantedBy=multi-user.target

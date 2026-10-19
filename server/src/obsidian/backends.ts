@@ -270,11 +270,11 @@ export class SemanticSearch {
     this.client = new McpClient(url, token, 20_000);
   }
   async search(query: string, limit = 8): Promise<{ path: string; title: string; snippet: string }[]> {
-    const t = await this.client.callTool("search", { query: query.slice(0, 500), limit });
+    const t = await this.client.callTool("search", { query: query.slice(0, 500), limit, mode: "hybrid" });
     try {
       const j = JSON.parse(t);
       const arr = Array.isArray(j) ? j : j.results ?? [];
-      return arr.slice(0, limit).map((r: any) => ({ path: String(r.path ?? ""), title: String(r.title ?? ""), snippet: String(r.snippet ?? r.text ?? "").slice(0, 200) }));
+      return arr.slice(0, limit).map((r: any) => ({ path: String(r.path ?? ""), title: String(r.title ?? ""), snippet: String(r.best_snippet ?? r.snippet ?? "").replace(/\s+/g, " ").slice(0, 200) }));
     } catch {
       return [...t.matchAll(/([^\n]+?\.md)/g)].slice(0, limit).map((m) => ({ path: m[1].replace(/^[-*\d.\s]+/, "").trim(), title: "", snippet: "" }));
     }

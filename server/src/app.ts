@@ -190,9 +190,12 @@ export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Prom
   await ensureAdmin(db, config, (m) => app.log.warn(m));
   if (opts.startScheduler !== false) scheduler.start();
 
-  // periodic housekeeping: expired upload chunks
+  // periodic housekeeping: expired upload chunks, and intermediate model outputs of finished
+  // recordings older than the configured age (0 disables; transcripts themselves live in SQLite)
   const housekeeping = setInterval(() => {
-    uploads.cleanup(settings.get().storage.cleanupFailedUploadsHours).catch(() => undefined);
+    const st = settings.get().storage;
+    uploads.cleanup(st.cleanupFailedUploadsHours).catch(() => undefined);
+    if (st.cleanupIntermediatesDays > 0) recordings.cleanupIntermediates(st.cleanupIntermediatesDays).catch(() => undefined);
   }, 3600_000);
 
   return {
