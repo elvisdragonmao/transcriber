@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+*.log
+.env
+worker/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+web/dist/
+server/public/
