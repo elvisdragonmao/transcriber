@@ -6,7 +6,7 @@ description = "Local GPU worker: Silero VAD, Qwen3-ASR, Qwen3-ForcedAligner, Nem
 # Exact versions verified on emfox (RTX 5060 sm_120 + RTX 3050 sm_86, driver 595.99, CUDA 13.2).
 # torch comes from https://download.pytorch.org/whl/cu132 (see deploy/install.sh).
 dependencies = [
-  "torch==2.12.0",
+  "torch==2.13.0",
   "transformers==5.20.1",
   "accelerate",
   "nemo-toolkit[asr]==3.0.0",
