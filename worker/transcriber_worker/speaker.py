@@ -14,7 +14,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from . import audio as audio_io
-from .checkpoint import write_json_atomic
+from .checkpoint import Checkpoint, fingerprint, write_json_atomic
 from .models import ModelRegistry
 from .protocol import TaskContext
 
@@ -73,12 +73,29 @@ def run_embed(ctx: TaskContext, p: dict[str, Any], models: ModelRegistry) -> dic
     emb: TitaNetEmbedder = models.get("titanet:" + model_id, lambda: TitaNetEmbedder(model_id))
     plan = {k: [w for a, b in spans for w in _windows(int(a), int(b))] for k, spans in p["speakers"].items()}
     total = sum(len(v) for v in plan.values())
-    done = 0
+    # per-speaker checkpoint: after a pause or crash, finished speakers are not embedded again
+    ck = Checkpoint(p.get("checkpoint_path"), "embed", fingerprint({"m": model_id, "plan": plan}))
+    done = sum(len(plan[k]) for k in plan if ck.has(k))
     sr = audio_io.SR
     t0 = time.monotonic()
-    ctx.progress(0, total, "spans", force=True)
+    ctx.progress(done, total, "spans", force=True)
     out: dict[str, Any] = {}
+    try:
+        _embed_all(ctx, p, emb, plan, ck, out, done, total, sr)
+    finally:
+        ck.flush()
+    result = {"version": 1, "model": model_id, "dim": emb.dim, "speakers": out, "elapsed_s": round(time.monotonic() - t0, 2)}
+    if p.get("output_path"):
+        write_json_atomic(p["output_path"], result)
+    ctx.progress(total, total, "spans", force=True)
+    return {"output_path": p.get("output_path"), "model_version": model_id, "dim": emb.dim, "speakers": out if not p.get("output_path") else None, "spans": total}
+
+
+def _embed_all(ctx: TaskContext, p: dict[str, Any], emb: "TitaNetEmbedder", plan: dict, ck: Checkpoint, out: dict, done: int, total: int, sr: int) -> None:
     for key, windows in plan.items():
+        if ck.has(key):
+            out[key] = ck.get(key)
+            continue
         vecs, used = [], 0
         for a, b in windows:
             ctx.check()
@@ -90,14 +107,10 @@ def run_embed(ctx: TaskContext, p: dict[str, Any], models: ModelRegistry) -> dic
             ctx.progress(done, total, "spans")
         if not vecs:
             out[key] = {"embedding": None, "used_ms": 0, "spans": 0, "consistency": None}
-            continue
-        M = np.stack(vecs)
-        centroid = M.mean(axis=0)
-        centroid /= np.linalg.norm(centroid) or 1
-        consistency = float(np.mean(M @ centroid))
-        out[key] = {"embedding": centroid.round(6).tolist(), "used_ms": used, "spans": len(vecs), "consistency": round(consistency, 4)}
-    result = {"version": 1, "model": model_id, "dim": emb.dim, "speakers": out, "elapsed_s": round(time.monotonic() - t0, 2)}
-    if p.get("output_path"):
-        write_json_atomic(p["output_path"], result)
-    ctx.progress(total, total, "spans", force=True)
-    return {"output_path": p.get("output_path"), "model_version": model_id, "dim": emb.dim, "speakers": out if not p.get("output_path") else None, "spans": total}
+        else:
+            M = np.stack(vecs)
+            centroid = M.mean(axis=0)
+            centroid /= np.linalg.norm(centroid) or 1
+            consistency = float(np.mean(M @ centroid))
+            out[key] = {"embedding": centroid.round(6).tolist(), "used_ms": used, "spans": len(vecs), "consistency": round(consistency, 4)}
+        ck.put(key, out[key])

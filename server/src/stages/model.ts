@@ -30,6 +30,7 @@ const files = (ctx: StageContext) => {
     alignCk: path.join(d, "align.ckpt.json"),
     diar: path.join(d, "diar.json"),
     identify: path.join(d, "identify.json"),
+    identifyCk: path.join(d, "identify.ckpt.json"),
   };
 };
 
@@ -156,7 +157,7 @@ export const identify: StageHandler = async (ctx) => {
   const spans: Record<string, number[][]> = {};
   for (const [k, v] of clean) if (v.length) spans[String(k)] = v;
   if (s.identify.enabled && Object.keys(spans).length) {
-    const r = await callWorker(ctx, "cpu", "embed", { audio_path: audioPaths(ctx.app.paths.recordings, rec.id).raw, speakers: spans, output_path: f.identify, model: s.identify.model });
+    const r = await callWorker(ctx, "cpu", "embed", { audio_path: audioPaths(ctx.app.paths.recordings, rec.id).raw, speakers: spans, output_path: f.identify, checkpoint_path: f.identifyCk, model: s.identify.model });
     if (paused(r)) return { kind: "paused" };
     modelVersion = r.model_version;
     emb = ((await readJson<any>(f.identify))?.speakers ?? {}) as typeof emb;

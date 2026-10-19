@@ -135,7 +135,7 @@ cd /home/em/transcriber
 
 - 服務：`transcriber.service`（systemd，開機自動啟動，`Restart=on-failure`，以 `em` 身分執行）。API、scheduler 和三個 Python worker 都由這個服務管理，不需要另外開 terminal。
 - HTTPS：`caddy.service`，設定在 `/etc/caddy/Caddyfile`，修改前的備份在 `/root/caddy-change-20261019T095228Z/`。
-- 升級：`git pull && ./deploy/install.sh --no-models`
+- 升級：原始碼的 git repo 在 Mac 的 `/Users/em/transcriber`，emfox 上是部署副本。從 Mac 執行 `rsync -az --exclude node_modules --exclude .venv --exclude data --exclude dist --exclude .git ./ emfox:transcriber/`，再到 emfox 執行 `./deploy/install.sh --no-models`。
 - 健康檢查：`curl http://127.0.0.1:8000/api/health`；完整狀態請看 UI 的「設定 → System Diagnostics」或 `GET /api/system/status`。
 
 ```bash
@@ -218,4 +218,5 @@ node scripts/acceptance.mjs --file a.m4a --template meeting    # 真實模型驗
 - **Codex CLI 尚未登入**。在 emfox 執行 `codex login` 後就能使用；目前 UI 會明確顯示「未登入」。
 - TitaNet 以英文資料訓練，中文聲紋分數的可靠度較低。中文門檻預設 0.78（英文 0.72），而且要求與第二名差距至少 0.10。請在累積幾份人工確認的資料後，用 `GET /api/speakers/calibration` 校準。
 - 暫停的粒度：ASR 和對齊會在區段邊界暫停，恢復時從 checkpoint 接續。VAD、diarization（53 分鐘約 15 秒）和 LLM 呼叫中途暫停的話，恢復後會重跑該階段。
+- 「重新轉錄」時，如果音訊、VAD 切段、語言與 Vocabulary 都和上次相同，ASR 會直接沿用 checkpoint（解碼是 deterministic）。修改 Vocabulary 或語言後就會重新辨識。
 - 這個專案的 `data/` 還沒有加入 Backrest 備份。
