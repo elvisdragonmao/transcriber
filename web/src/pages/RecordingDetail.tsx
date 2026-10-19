@@ -182,7 +182,7 @@ function TranscriptView({ t, currentMs, seek, follow }: { t: Transcript; current
   }, [currentMs, t.segments]);
   const rows = useRef<Map<number, HTMLDivElement>>(new Map());
   useEffect(() => {
-    if (follow && active >= 0) rows.current.get(active)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (follow && active >= 0) rows.current.get(active)?.scrollIntoView({ block: "center", behavior: "smooth" }); // center keeps it clear of the pinned player
   }, [active, follow]);
   useEffect(() => {
     if (matches.length) rows.current.get(matches[Math.min(hit, matches.length - 1)])?.scrollIntoView({ block: "center" });
@@ -196,7 +196,7 @@ function TranscriptView({ t, currentMs, seek, follow }: { t: Transcript; current
 
   return (
     <div>
-      <div className="sticky top-[53px] z-10 -mx-1 mb-2 flex items-center gap-2 bg-bg/95 px-1 py-2 backdrop-blur lg:top-0">
+      <div className="mb-2 flex items-center gap-2 py-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted" />
           <Input className="pl-8" placeholder="搜尋逐字稿" value={query} onChange={(e) => (setQuery(e.target.value), setHit(0))} />
@@ -843,7 +843,10 @@ export function RecordingDetail() {
       ))}
       {!activeJobs.length && lastFailed && !r.transcript && <JobCard job={lastFailed} showTitle={false} />}
 
-      <Player rec={r} audioRef={audioRef} currentMs={currentMs} bands={bands} />
+      {/* stays pinned while scrolling through a long transcript */}
+      <div className="sticky top-[53px] z-20 -mx-4 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:top-0">
+        <Player rec={r} audioRef={audioRef} currentMs={currentMs} bands={bands} />
+      </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-line">
         {tabs.map(([k, label]) => (

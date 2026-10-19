@@ -1,23 +1,21 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, LayoutDashboard, ListChecks, LogOut, Menu, Moon, Settings as SettingsIcon, Sun, Upload as UploadIcon, Users, Library } from "lucide-react";
+import { AudioLines, House, LogOut, Menu, Moon, Settings as SettingsIcon, Sun, UploadCloud, Users, Library } from "lucide-react";
 import { get, post } from "./lib/api";
 import { useLiveEvents } from "./lib/sse";
 import { cx } from "./components/ui";
 import { Login } from "./pages/Login";
-import { Dashboard } from "./pages/Dashboard";
-import { UploadPage } from "./pages/Upload";
-import { JobsPage } from "./pages/Jobs";
+import { HomePage } from "./pages/Home";
+import { uploads } from "./lib/upload";
+import { resolveUploadOptions } from "./lib/uploadOptions";
 import { RecordingsPage } from "./pages/Recordings";
 import { RecordingDetail } from "./pages/RecordingDetail";
 import { SpeakersPage } from "./pages/Speakers";
 import { SettingsPage } from "./pages/Settings";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/upload", label: "上傳", icon: UploadIcon },
-  { to: "/jobs", label: "任務", icon: ListChecks },
+  { to: "/", label: "首頁", icon: House, end: true },
   { to: "/recordings", label: "錄音", icon: Library },
   { to: "/speakers", label: "講者", icon: Users },
   { to: "/settings", label: "設定", icon: SettingsIcon },
@@ -45,8 +43,58 @@ function ThemeToggle() {
   );
 }
 
+/** Drop audio files anywhere in the window: they upload with the options set on the home page. */
+function useWindowDrop() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [count, setCount] = useState<number | null>(null);
+  const depth = useRef(0);
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+    const enter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth.current++;
+      setCount(e.dataTransfer!.items?.length ?? 0);
+    };
+    const over = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+    };
+    const leave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth.current = Math.max(0, depth.current - 1);
+      if (depth.current === 0) setCount(null);
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth.current = 0;
+      setCount(null);
+      const files = [...(e.dataTransfer?.files ?? [])];
+      if (!files.length) return;
+      const settings = (qc.getQueryData(["settings"]) as any)?.settings;
+      uploads.add(files, resolveUploadOptions(settings));
+      navigate("/");
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, [qc, navigate]);
+  return count;
+}
+
 function Shell({ children, user }: { children: ReactNode; user: string }) {
   const qc = useQueryClient();
+  const dragging = useWindowDrop();
   const conn = useLiveEvents(qc, true);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
@@ -64,7 +112,7 @@ function Shell({ children, user }: { children: ReactNode; user: string }) {
         >
           <n.icon className="size-4" />
           <span className="flex-1">{n.label}</span>
-          {n.to === "/jobs" && activeCount > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{activeCount}</span>}
+          {n.to === "/" && activeCount > 0 && <span className="rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{activeCount}</span>}
         </NavLink>
       ))}
     </nav>
@@ -115,6 +163,15 @@ function Shell({ children, user }: { children: ReactNode; user: string }) {
         </div>
       )}
       <main className="mx-auto w-full max-w-[1400px] px-4 py-5 sm:px-6">{children}</main>
+      {dragging !== null && (
+        <div className="pointer-events-none fixed inset-3 z-50 flex items-center justify-center rounded-2xl border-4 border-dashed border-accent bg-accent/10 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 rounded-xl bg-panel px-8 py-6 shadow-xl">
+            <UploadCloud className="size-10 text-accent" />
+            <div className="text-lg font-semibold">放開即可上傳{dragging > 1 ? `（${dragging} 個檔案）` : ""}</div>
+            <div className="text-sm text-muted">使用首頁目前的處理選項</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -132,9 +189,9 @@ export function App() {
   return (
     <Shell user={me.data.user.username}>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/upload" element={<UploadPage />} />
-        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/upload" element={<Navigate to="/" replace />} />
+        <Route path="/jobs" element={<Navigate to="/" replace />} />
         <Route path="/recordings" element={<RecordingsPage />} />
         <Route path="/recordings/:id" element={<RecordingDetail />} />
         <Route path="/speakers" element={<SpeakersPage />} />

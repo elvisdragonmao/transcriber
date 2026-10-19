@@ -178,9 +178,10 @@ export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Prom
 
   const webDist = path.join(config.projectRoot, "web", "dist");
   if (fs.existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist, prefix: "/", wildcard: false, index: ["index.html"] });
+    await app.register(fastifyStatic, { root: webDist, prefix: "/", wildcard: true, index: ["index.html"] });
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith("/api/")) return reply.status(404).send({ error: "not_found", message: "Not found" });
+      // unknown API routes and missing build assets are real 404s; everything else is an SPA route
+      if (req.url.startsWith("/api/") || req.url.startsWith("/assets/")) return reply.status(404).send({ error: "not_found", message: "Not found" });
       return reply.type("text/html").header("Cache-Control", "no-cache").sendFile("index.html", webDist);
     });
   } else {

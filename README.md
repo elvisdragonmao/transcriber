@@ -119,7 +119,7 @@ PyPI 上的 `nemo-toolkit 3.0.0` 還不支援這個模型用的 `rope` 位置編
 | VAD、TitaNet、ffmpeg、API | CPU | |
 
 - 裝置一律以 **GPU UUID** 指定。每個 worker 用 `CUDA_VISIBLE_DEVICES=<UUID>` 啟動，在行程內永遠是 `cuda:0`，兩張卡的 VRAM 不會合併使用。
-- 第一次啟動時會依 GPU 名稱自動對應，之後可以在「設定 → GPU Device Mapping」修改。
+- 第一次啟動時會依 GPU 名稱自動對應，之後可以在「設定 → GPU & Workers」修改。
 - Diarization 的 GPU 若遇到 OOM（重試後仍失敗）或架構不支援，會依設定改用 CPU，並在 UI 標示「在 CPU 執行，速度會明顯較慢」；也可以設定成直接失敗並顯示診斷。
 - 模型閒置 15 分鐘後自動卸載，釋放 VRAM。
 
@@ -150,7 +150,7 @@ tail -f data/logs/server.log data/logs/worker-gpu-asr.log
 pnpm install
 MOCK_WORKER=1 ./scripts/dev.sh     # 沒有 GPU 也能跑（假 worker），API :8000 + Vite :5173
 ./scripts/dev.sh                   # 在 emfox 上用真實 worker
-pnpm --filter server test          # 44 項整合／單元測試
+pnpm --filter server test          # 45 項整合／單元測試
 worker/.venv/bin/python -m pytest worker/tests
 node scripts/acceptance.mjs --file a.m4a --template meeting    # 真實模型驗收
 ```

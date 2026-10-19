@@ -4,6 +4,7 @@ import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { get, patch, post } from "../lib/api";
 import { bytes, dateTime } from "../lib/format";
 import { Badge, Button, ErrorNote, Field, Input, Panel, Select, Spinner, Textarea, Toggle, cx } from "../components/ui";
+import { GpuPanel } from "../components/GpuPanel";
 
 type S = any;
 
@@ -56,7 +57,9 @@ function GpuSection() {
   const diag = useMutation({ mutationFn: () => post("/api/system/diagnostics") });
   const opts = [...(gpus.data?.gpus ?? []).map((g: any) => ({ value: g.uuid, label: `${g.name}（${(g.memoryTotalMiB / 1024).toFixed(0)} GB · ${g.uuid.slice(0, 12)}…）` }))];
   return (
-    <SectionForm
+    <div className="space-y-5">
+      <GpuPanel />
+      <SectionForm
       section="gpu"
       render={(v, set) => (
         <>
@@ -91,7 +94,8 @@ function GpuSection() {
           {diag.data && <pre className="max-h-80 overflow-auto rounded bg-panel-2 p-3 text-xs">{JSON.stringify(diag.data, null, 2)}</pre>}
         </>
       )}
-    />
+      />
+    </div>
   );
 }
 
@@ -512,8 +516,28 @@ function DiagnosticsSection() {
   const restart = useMutation({ mutationFn: () => post("/api/system/workers/restart") });
   const [pw, setPw] = useState({ current: "", next: "" });
   const change = useMutation({ mutationFn: () => post("/api/auth/password", pw) });
+  const d = status.data;
   return (
     <div className="space-y-5">
+      {d && (
+        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          {[
+            ["版本", `v${d.version} · schema v${d.schemaVersion}`],
+            ["Node", d.node],
+            ["已執行", `${Math.round(d.uptimeSec / 60)} 分鐘`],
+            ["Load", d.loadavg.map((x: number) => x.toFixed(1)).join(" ")],
+            ["記憶體", `${((d.memory.total - d.memory.free) / 1024 ** 3).toFixed(1)} / ${(d.memory.total / 1024 ** 3).toFixed(0)} GB`],
+            ["執行中階段", d.running.length ? d.running.map((r: any) => `${r.stage}@${r.lane}`).join("、") : "無"],
+            ["LAN only", d.lanOnly ? "是" : "否"],
+            ["Worker", d.mockWorker ? "MOCK" : "Python（真實模型）"],
+          ].map(([k, v]) => (
+            <div key={k} className="rounded-md border border-line p-2">
+              <dt className="text-xs text-muted">{k}</dt>
+              <dd className="truncate font-medium">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       <pre className="max-h-[50vh] overflow-auto rounded-md bg-panel-2 p-3 text-xs">{status.data ? JSON.stringify({ ...status.data, storage: undefined }, null, 2) : "…"}</pre>
       <Button onClick={() => restart.mutate()} loading={restart.isPending}>
         重新啟動 AI workers（卸載所有模型）
@@ -536,7 +560,7 @@ function DiagnosticsSection() {
 }
 
 const TABS = [
-  ["gpu", "GPU Device Mapping", GpuSection],
+  ["gpu", "GPU & Workers", GpuSection],
   ["models", "AI 模型", ModelsSection],
   ["llm", "Claude Code / Codex", LlmSection],
   ["obsidian", "Obsidian Vault", ObsidianSection],

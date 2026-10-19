@@ -40,7 +40,7 @@ export function Waveform({
     const c = canvas.current;
     if (!c) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = 72;
+    const h = 56;
     c.width = width * dpr;
     c.height = h * dpr;
     const ctx = c.getContext("2d")!;
@@ -87,12 +87,12 @@ export function Waveform({
   return (
     <div
       ref={wrap}
-      className="relative h-[72px] w-full cursor-pointer select-none"
+      className="relative h-[56px] w-full cursor-pointer select-none"
       onClick={(e) => onSeek(toMs(e.clientX))}
       onMouseMove={(e) => setHover(toMs(e.clientX))}
       onMouseLeave={() => setHover(null)}
     >
-      <canvas ref={canvas} style={{ width: "100%", height: 72 }} />
+      <canvas ref={canvas} style={{ width: "100%", height: 56 }} />
       {hover != null && (
         <div className="pointer-events-none absolute -top-6 rounded bg-fg px-1.5 py-0.5 text-[11px] text-bg" style={{ left: `calc(${(hover / durationMs) * 100}% - 20px)` }}>
           {new Date(hover).toISOString().slice(11, 19)}

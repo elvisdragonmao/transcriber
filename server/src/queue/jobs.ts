@@ -1,5 +1,4 @@
 import path from "node:path";
-import fsp from "node:fs/promises";
 import type { DB } from "../db/index.js";
 import type { Settings } from "../settings.js";
 import { AppError, conflict, json, notFound, nowIso, uuid } from "../lib/util.js";
@@ -326,10 +325,6 @@ export function listJobs(db: DB, filter: { status?: string; recordingId?: string
     .prepare(`SELECT * FROM jobs ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ?`)
     .all(...args, Math.min(filter.limit ?? 100, 500)) as JobRow[];
   return rows.map((j) => jobSnapshot(db, j));
-}
-
-export async function removeWorkFiles(recordingsDir: string, recordingId: string) {
-  await fsp.rm(workDir(recordingsDir, recordingId), { recursive: true, force: true });
 }
 
 export function assertTransition(job: JobRow, allowed: JobStatus[], action: string) {

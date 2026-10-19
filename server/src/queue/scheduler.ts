@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type { AppContext } from "../context.js";
 import { AppError, json, nowIso } from "../lib/util.js";
 import { StageSignal, WorkerCallError } from "../workers/pool.js";
@@ -7,7 +8,7 @@ import {
   getJob,
   getStages,
   jobSnapshot,
-  removeWorkFiles,
+  workDir,
   type JobRow,
   type StageRow,
 } from "./jobs.js";
@@ -337,13 +338,18 @@ export class Scheduler {
     const db = this.ctx.db;
     const now = nowIso();
     const job = getJob(db, jobId);
+    // Discard partial results *before* reporting the job as cancelled, so "cancelled" always means done.
+    if (!job.keep_partial && job.type === "transcription") {
+      try {
+        fs.rmSync(workDir(this.ctx.paths.recordings, job.recording_id), { recursive: true, force: true });
+      } catch (e) {
+        this.ctx.log.warn({ err: e, jobId }, "could not remove intermediate files of cancelled job");
+      }
+      db.prepare("DELETE FROM transcripts WHERE recording_id = ? AND status = 'partial'").run(job.recording_id);
+    }
     db.prepare("UPDATE job_stages SET status = 'cancelled', updated_at = ? WHERE job_id = ? AND status IN ('pending','running','paused')").run(now, jobId);
     db.prepare("UPDATE jobs SET status = 'cancelled', current_stage = NULL, finished_at = ?, updated_at = ? WHERE id = ?").run(now, now, jobId);
     this.event(jobId, null, "info", "cancelled", job.keep_partial ? "Job cancelled (partial results kept)" : "Job cancelled");
-    if (!job.keep_partial && job.type === "transcription") {
-      removeWorkFiles(this.ctx.paths.recordings, job.recording_id).catch(() => undefined);
-      db.prepare("DELETE FROM transcripts WHERE recording_id = ? AND status = 'partial'").run(job.recording_id);
-    }
   }
 
   // ---- user actions -------------------------------------------------------
