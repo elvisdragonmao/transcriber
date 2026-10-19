@@ -1,0 +1,14 @@
+{
+  "name": "transcriber",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local AI transcription & knowledge management (Qwen3-ASR, Nemotron diarization, TitaNet, Obsidian)",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter web build && pnpm --filter server build",
+    "test": "pnpm --filter server test",
+    "start": "pnpm --filter server start"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": { "node": ">=22" }
+}

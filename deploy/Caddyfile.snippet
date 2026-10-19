@@ -1,0 +1,14 @@
+# Example Caddyfile block. Replace transcriber.example.com with your hostname.
+# If the hostname resolves to a private / VPN address, Let's Encrypt cannot reach it over HTTP,
+# so the certificate is obtained with the Cloudflare DNS-01 challenge. That needs a Caddy build
+# with github.com/caddy-dns/cloudflare (see deploy/install-caddy.sh) and CLOUDFLARE_API_TOKEN.
+transcriber.example.com {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 8.8.8.8
+	}
+	# optional: only private / CGNAT (e.g. VPN) clients; the app can enforce this too (LAN_ONLY=1)
+	@outside not remote_ip private_ranges 100.64.0.0/10
+	respond @outside 403
+	reverse_proxy 127.0.0.1:8000
+}

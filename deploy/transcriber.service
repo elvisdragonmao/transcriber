@@ -1,0 +1,29 @@
+# Template: deploy/install.sh renders @USER@ / @ROOT@ and installs it as /etc/systemd/system/transcriber.service
+[Unit]
+Description=Transcriber - local AI transcription (API, scheduler, GPU workers)
+After=network-online.target nvidia-persistenced.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@USER@
+WorkingDirectory=@ROOT@
+EnvironmentFile=@ROOT@/.env
+Environment=NODE_ENV=production
+Environment=PATH=@HOME@/.local/bin:@HOME@/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/node @ROOT@/server/dist/index.js
+# SIGTERM → server pauses running stages at safe boundaries and stops the Python workers
+KillMode=mixed
+TimeoutStopSec=45
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+StandardOutput=append:@ROOT@/data/logs/service.log
+StandardError=append:@ROOT@/data/logs/service.log
+
+[Install]
+WantedBy=multi-user.target
